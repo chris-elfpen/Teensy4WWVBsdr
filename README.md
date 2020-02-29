@@ -26,7 +26,7 @@ Color touchscreen https://www.pjrc.com/store/display_ili9341_touch.html
    | | 0 | gnd |  |
    | | 1 | 3.3V | RESET (screen) |   
    | | 2 | 23 | MCLK (audio) |
-   | | 3 | 22 | LED  (to screen via a serias 100 ohm resistor)|
+   | | 3 | 22 | LED  (to screen via a series 100 ohm resistor)|
    | | 4 | 21 | BCLK (audio) |
    | D/C (screen)	| 5	| 20 | LRCLK (audio)|
 |MEMCS (audio)|	6|	19|	SCL (audio)|
