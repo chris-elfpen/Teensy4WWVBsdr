@@ -15,9 +15,11 @@ Interconnections:
 
 Teensy 4.0 pin functions				
 				
-|GND|gnd|Vin|Vin(screen)|
-||0|gnd|GND (screen)|
-||1|3.3V|RESET (screen)|
+| GND | gnd | Vin | Vin(screen) |
+
+| | 0 | gnd | GND (screen) |
+
+| | 1 | 3.3V | RESET (screen) |
 
 
 		        1	                 3.3V	RESET (screen)
