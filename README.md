@@ -37,8 +37,8 @@ Teensy 4.0 pins
 
 ILI9341 pin assignment when using Teensy 4.0 Audio Board
 
-
-
+|name| pin|
+|----|----|
  |VCC| |				
  |GND| |	
  |CS|14|
