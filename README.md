@@ -33,18 +33,23 @@ Teensy 4.0 pins
 |MOSI|11|14|CS (screen)|
 |  MISO|12|  13	| SCK|
 				
-ILI9341 Pin	W/Teensy 4.0 Audio Board			
-VCC				
-GND				
-CS	14			
-RESET	24			
-D/C	5			
-SDI (MOSI)	11			
-SCK	13			
-LED	22			
-SDO (MISO)	12			
-T_CLK	13			
-T_CS	9			
-T_DIN	11			
-T_DO	12			
-T_IRQ	16			
+
+
+ILI9341 pin assignment when using Teensy 4.0 Audio Board
+
+
+
+ |VCC| |				
+ |GND| |	
+ |CS|14|
+ |RESET	|24|			
+ |D/C|	5|			
+ |SDI (MOSI)|	11|			
+ |SCK|13|
+ |LED	|22			
+ |SDO (MISO)|	12|			
+|T_CLK	|13|			
+|T_CS	|9|			
+|T_DIN	|11|			
+|T_DO	|12|			
+|T_IRQ|	16|			
