@@ -13,27 +13,25 @@ Color touchscreen https://www.pjrc.com/store/display_ili9341_touch.html
 Interconnections:
 
 
-Teensy 4.0 pin functions				
-				
-| GND | gnd | Vin | Vin(screen) |
-
-| | 0 | gnd | GND (screen) |
-
-| | 1 | 3.3V | RESET (screen) |
+Teensy 4.0 pins
 
 
-		        1	                 3.3V	RESET (screen)
-		        2	                 23	MCLK (audio)
-		        3	                 22	LED ( screen via a series 100 ohm resistor)
-		        4	                 21	BCLK (audio)
-D/C (screen)	5	            20	LRCLK (audio)
-	MEMCS (audio)	6	            19	SCL (audio)
-	DIN (audio)	7               18	SDA (audio)
-	DOUT (audio)8	              17	
-	T_CS (screen)	9	            16	T_IRQ (screen)
-	SDCS (audio)10	            15	VOL (audio)
-	    MOSI	11	              14	  CS (screen)
-	    MISO	12	              13	  SCK
+   |  comment | pin | pin | comment |
+   |-----|-----|-----|-----|				
+   | GND | gnd | Vin | Vin(screen) |
+   | | 0 | gnd | GND (screen) |
+   | | 1 | 3.3V | RESET (screen) |   
+   | | 2 | 23 | MCLK (audio) |
+   | | 3 | 22 | LED  (to screen via a serias 100 ohm resistor)|
+   | | 4 | 21 | BCLK (audio) |
+   | D/C (screen)	| 5	| 20 | LRCLK (audio)|
+|MEMCS (audio)|	6|	19|	SCL (audio)|
+|DIN (audio) |7|18|SDA (audio)|
+|DOUT (audio)|8|17||
+|T_CS (screen)|9|  16|T_IRQ (screen)|
+|SDCS (audio)|10|15|VOL (audio)|
+|MOSI|11|14|CS (screen)|
+|  MISO|12|  13	| SCK|
 				
 ILI9341 Pin	W/Teensy 4.0 Audio Board			
 VCC				
