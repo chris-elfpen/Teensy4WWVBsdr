@@ -1,6 +1,8 @@
 # Teensy4WWVBsdr
 
-I took code from https://github.com/DD4WH/Teensy-DCF77 and reworked it in order to listen to WWVB and to use the new Teensy 4.0 and the audio board specific for Teensy 4.
+I took code from https://github.com/DD4WH/Teensy-DCF77 and reworked it to monitor WWVB and to
+use the new Teensy 4.0 and the audio board specific for Teensy 4.
+
 
 ## Hardware:
 
@@ -9,6 +11,8 @@ Teensy 4.0  https://www.pjrc.com/store/teensy40.html
 Audio board (rev D)  https://www.pjrc.com/store/teensy3_audio.html
 
 Color touchscreen https://www.pjrc.com/store/display_ili9341_touch.html
+
+
 
 ## Interconnections:
 
