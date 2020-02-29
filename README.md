@@ -2,24 +2,24 @@
 
 I took code from https://github.com/DD4WH/Teensy-DCF77 and reworked it in order to listen to WWVB and to use the new Teensy 4.0 and the audio board specific for Teensy 4.
 
-Hardware:
+## Hardware:
 
-teensy 4.0  https://www.pjrc.com/store/teensy40.html
+Teensy 4.0  https://www.pjrc.com/store/teensy40.html
 
 Audio board (rev D)  https://www.pjrc.com/store/teensy3_audio.html
 
 Color touchscreen https://www.pjrc.com/store/display_ili9341_touch.html
 
-Interconnections:
+## Interconnections:
 
 
-Teensy 4.0 pins
+### Teensy 4.0 pins
 
 
    |  comment | pin | pin | comment |
    |-----|-----|-----|-----|				
-   | GND | gnd | Vin | Vin(screen) |
-   | | 0 | gnd | GND (screen) |
+   | GND | gnd | Vin | common with Vin(screen) |
+   | | 0 | gnd | common with GND (screen) |
    | | 1 | 3.3V | RESET (screen) |   
    | | 2 | 23 | MCLK (audio) |
    | | 3 | 22 | LED  (to screen via a serias 100 ohm resistor)|
@@ -35,21 +35,21 @@ Teensy 4.0 pins
 				
 
 
-ILI9341 pin assignment when using Teensy 4.0 Audio Board
+### ILI9341 pin assignment when using Teensy 4.0 Audio Board
 
-|name| pin|
-|----|----|
- |VCC| |				
- |GND| |	
- |CS|14|
- |RESET	|24|			
- |D/C|	5|			
- |SDI (MOSI)|	11|			
- |SCK|13|
- |LED	|22			
- |SDO (MISO)|	12|			
-|T_CLK	|13|			
-|T_CS	|9|			
-|T_DIN	|11|			
-|T_DO	|12|			
-|T_IRQ|	16|			
+|display pin |name| teensy pin|
+|----|----|---|
+|1 |VCC| common with Vin |				
+ |2|GND| common with GND |	
+ |3|CS|14|
+ |4|RESET	|24 (3.3v)|			
+ |5|D/C|	5|			
+ |6|SDI (MOSI)|	11|			
+ |7|SCK|13|
+ |8|LED	|22 via 100 ohm resistor|			
+ |9|SDO (MISO)|	12|			
+|10|T_CLK	|13|			
+|11|T_CS	|9|			
+|12|T_DIN	|11|			
+|13|T_DO	|12|			
+|14|T_IRQ|	16|			
