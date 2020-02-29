@@ -23,7 +23,7 @@ Color touchscreen https://www.pjrc.com/store/display_ili9341_touch.html
    |  comment | pin | pin | comment |
    |-----|-----|-----|-----|				
    | GND | gnd | Vin | common with Vin(screen) |
-   | | 0 | gnd | common with GND (screen) |
+   | | 0 | gnd |  |
    | | 1 | 3.3V | RESET (screen) |   
    | | 2 | 23 | MCLK (audio) |
    | | 3 | 22 | LED  (to screen via a serias 100 ohm resistor)|
