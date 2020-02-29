@@ -3,7 +3,7 @@
 /***********************************************************************
 
    Thanks to the following which was the inspiration and original source
-   for my efforts -- Chris Howard   February 2020
+   for my efforts -- Chris Howard  email w0ep@w0ep.us  February 2020
 
    *********************************************************************
 
@@ -17,7 +17,7 @@
 
     https://github.com/DD4WH/Teensy-DCF77/wiki
 */
-#define VERSION     " v0.42x"
+#define VERSION     " v0.42w"
 /*
    Permission is hereby granted, free of charge, to any perso obtaining a copy
    of this software and associated documentation files (the "Software"), to deal
@@ -54,8 +54,6 @@ time_t getTeensy3Time()
   return Teensy3Clock.get();
 }
 
-//#include <FlexiBoard.h>
-
 #define BACKLIGHT_PIN 22
 #define TFT_DC      5
 #define TFT_CS      14
@@ -82,6 +80,7 @@ ILI9341_t3 tft = ILI9341_t3(TFT_CS, TFT_DC, TFT_RST, TFT_MOSI, TFT_SCLK, TFT_MIS
 #define SAMPLE_RATE_192K              10
 #define SAMPLE_RATE_MAX               10
 
+int debug = 0;
 
 AudioInputI2S            i2s_in;         //xy=202,411
 AudioSynthWaveformSine   sine1;          //xy=354,249
@@ -214,6 +213,7 @@ void setup() {
   set_sample_rate (sample_rate);
   set_freq_LO (freq_real);
 
+  initializePrecisionHistory();
   displayDate();
   displayClock();
   displayPrecisionMessage();
@@ -266,6 +266,13 @@ void       set_freq_LO(int freq) {
   if (freq_LO > 22000) {
     freq_LO = 22000;
     freq_real = freq_LO * (sample_rate_real / AUDIO_SAMPLE_RATE_EXACT) + 9;
+  }
+  if ( debug )
+  {
+    Serial.print("set_freq_LO ");
+    Serial.print(freq);
+    Serial.print(" freq_LO ");
+    Serial.println(freq_LO);
   }
   AudioNoInterrupts();
   sine1.frequency(freq_LO);
@@ -345,7 +352,10 @@ void      set_sample_rate (int sr) {
   AudioInterrupts();
   delay(20);
   WWVB_bin = round((WWVB_FREQ / (sample_rate_real / 2.0)) * (FFT_points / 2));
-  Serial.print("WWVB_bin number: "); Serial.println(WWVB_bin);
+  if ( debug )
+  {
+    Serial.print("WWVB_bin number: "); Serial.println(WWVB_bin);
+  }
 
   // displaySettings();
   prepare_spectrum_display();
@@ -435,119 +445,77 @@ void agc() {
   if ((t - tspeed > 1500) && (t - tspeed < 3500) ) {
     if (speed_agc < speed_agc_run) {
       speed_agc = speed_agc_run;
-      Serial.printf("Set AGC-Speed %f\n", speed_agc);
+      if ( debug )
+      {
+        Serial.printf("Set AGC-Speed %f\n", speed_agc);
+      }
     }
   }
 
   if ((t - tagc > 2221) || (speed_agc == speed_agc_start)) {
     tagc = t;
     if ((wwvb_med > 160) && (mic_gain > 30)) {
+      //if ((wwvb_med > 160) && (mic_gain > 30)) {
       mic_gain--;
       set_mic_gain(mic_gain);
-      // Serial.printf("(Gain: %d)", mic_gain);
+      //Serial.printf("(Gain-: %d)", mic_gain);
     }
     if ((wwvb_med < 100) && (mic_gain < 58)) {
       mic_gain++;
       set_mic_gain(mic_gain);
-      // Serial.printf("(Gain: %d)", mic_gain);
+      //Serial.printf("(Gain+: %d)", mic_gain);
     }
   }
 }
 
-/*
-  int getParity(uint32_t value) {
-  int par = 0;
-  while (value) {
-    value = value & (value - 1);
-    par = ~par;
+// Precision History
+// Until first successful decode, show the red text.
+// After first decode, show a string of colored  characters
+//  that indicate the most recent success/fail.
+//
+// array is circular buffer
+
+#define PH_SIZE 60  
+#define PH_DISPLAY 45 
+int precisionHistory[PH_SIZE]; // 0 = fail; 1 = success
+unsigned int phIndex = PH_DISPLAY;
+
+
+void initializePrecisionHistory()
+{
+  // initialize all to fail state
+  for (int i = 0; i < PH_SIZE; i++ )
+  {
+    precisionHistory[i] = 0;
   }
-  return par & 1;
-  }
-
-
-  int decodeTelegram(uint64_t telegram) {
-  uint16_t minute, hour, day, weekday, month, year, v10;
-  int parity;
-
-  //Plausibility checks and decoding telegram
-  //Example-Data: 0x8b47c14f468f9ec0ULL : 2016/11/20
-
-  //https://de.wikipedia.org/wiki/DCF77
-
-  //TODO : more plausibility-checks to prevent false positives
-  return;
-  //Check fixed - bits:
-  if ( ((telegram & 1) != 0) || ((telegram >> 20) & 1) == 0) {
-    Serial.println("Fixed-Bit error\n");
-    return 0;
-  }
-
-  //MESZ Central European Summer Time ?
-  mesz = (telegram >> 17) & 1;
-  if ( mesz != (~(telegram >> 18) & 1) ) {
-    Serial.println("MESZ-Bit error\n");
-    return 0;
-  }
-
-  //1. decode date & date-parity-bit
-  parity = telegram >> 58 & 0x01;
-  if (getParity( (telegram >> 36) & 0x3fffff) != parity) return 0;
-  year = ((telegram >> 54) & 0x0f) * 10 + ((telegram >> 50) & 0x0f);
-  if (year < 16) return 0;
-
-  month = ((telegram >> 45) & 0x0f);
-  if (month > 9) return 0;
-
-  month = ((telegram >> 49) & 0x01) * 10 + month;
-  if ((month == 0) || (month > 12)) return 0;
-
-  weekday = ((telegram >> 42) & 0x07);
-  if (weekday == 0) return 0;
-
-  day = ((telegram >> 36) & 0x0f);
-  if (day > 9) return 0;
-  day = ((telegram >> 40) & 0x03) * 10 + day;
-  if ( (day == 0) || (day > 31) ) return 0;//Todo add check on 29.feb, 30/31 and more...
-
-
-  //2. decode time & parity-bit
-  parity = telegram >> 35 & 0x01;
-  if  (getParity( (telegram >> 29) & 0x3f) != parity) return 0;
-  hour = (telegram >> 29 & 0x0f);
-  if (hour > 9) return 0;
-  v10 = (telegram >> 33 & 0x03);
-  if (v10 > 2) return 0;
-  hour = v10 * 10 + hour;
-  if (hour > 23) return 0;
-
-  parity = telegram >> 28 & 0x01;
-  if (getParity( (telegram >> 21) & 0x7f ) != parity) return 0;
-  minute = (telegram >> 21 & 0x0f);
-  if (minute > 9) return 0;
-  v10 = (telegram >> 25 & 0x07);
-  if (v10 > 5) return 0;
-  minute = v10 * 10 + minute;
-  if (minute > 59) return 0;
-
-
-  //All data seem to be ok.
-  Serial.printf("Time set: %d.%d.20%d %d:%02d %s\n", day, month, year, hour, minute, mesz ? "MESZ" : "MEZ");
-  setTime (hour, minute, 0, day, month, year);
-  Teensy3Clock.set(now());
-  displayDate();
-  return 1;
-  }
-*/
+}
 
 void displayPrecisionMessage()
 {
+  unsigned int i, j;
   // This code uses the same display real estate as displaySettings()
-  if (precision_flag) {
+  if (precision_flag)
+  {
     tft.fillRect(14, 32, 300, 18, ILI9341_BLACK);
     tft.setCursor(14, 32);
     tft.setFont(Arial_11);
-    tft.setTextColor(ILI9341_GREEN);
-    tft.print("Full precision of time and date");
+
+    for ( i = 0; i < PH_DISPLAY; i++ )
+    {
+      j = (i + phIndex - PH_DISPLAY) % PH_SIZE;
+      if ( precisionHistory[j] )
+      {
+        tft.setTextColor(ILI9341_GREEN);
+        tft.print("*");
+      }
+      else
+      {
+        tft.setTextColor(ILI9341_RED);
+        tft.print("-");
+      }
+    }
+    // tft.setTextColor(ILI9341_GREEN);
+    // tft.print("Full precision of time and date");
     tft.drawRect(290, 4, 20, 20, ILI9341_GREEN);
   }
   else
@@ -560,50 +528,6 @@ void displayPrecisionMessage()
     tft.drawRect(290, 4, 20, 20, ILI9341_RED);
   }
 } // end function displayPrecisionMessage
-
-//int decode(unsigned long t)
-// {
-//  static uint64_t data = 0;
-//  static int sec = 0;
-//  static unsigned long tlastBit = 0;
-//  int bit;
-//  unsigned long m;
-
-//  m = millis();
-//  if ( m - tlastBit > 1600) {
-//    Serial.printf(" End Of Telegram. Data: 0x%llx %d Bits\n", data, sec);
-//    Serial.println();
-//    tft.fillRect(14, 54, 59 * 5, 3, ILI9341_BLACK);
-//    if (sec == 59) {
-//      precision_flag = decodeTelegram(data);
-//      displayPrecisionMessage();
-//   }
-//
-//    sec = 0;
-//    data = 0;
-//  }
-//  tlastBit = m;
-
-
-//
-//bit = (t > 350) ? 1 : 0;
-//Serial.print(bit);
-
-// plot horizontal bar
-//  tft.fillRect(14 + 5 * sec, 54, 3, 3, bit ? ILI9341_YELLOW : ILI9341_PURPLE);
-//  data = ( data >> 1) | ((uint64_t)bit << 58);
-
-//  sec++;
-//  if (sec > 59) { // just to prevent accidents with weak signals ;-)
-//    sec = 0;
-
-//static int symbolCount = 0;
-
-//if( symbolCount == 0
-
-//  }
-//  return bit;
-//}
 
 int symbolString[60];
 int symbolCount = 0;
@@ -626,27 +550,29 @@ const unsigned int __seconds_years[30] =
   2366841600, 2398377600, 2429913600, 2461449600, 2493072000
 };
 
-// At first I tried to build a string of date/time.
-// Then I started wondering how various roll-over conditions
-//   would impact my system.
-// Finally I saw the light, embraced the time_t way:  just
-//   count up all of the seconds and let TimeLib do the
-//   heavy lifting.
 
-int decode (int symbol)
+// One long state machine based on the symbolCount.
+// Given the symbol we have received
+//  and the current symbolCount, are we still on track or
+//  are we busted.  Machine starts over when busted.
+//  The start condition is looking for 'M' symbol.
+//
+
+void decode (int symbol)
 {
   static int badData = 0;
   static time_t newTime = 0;
+  static int phCount = 0;
 
-  //Serial.print(" ");
-  //Serial.print(symbolCount);
-  //Serial.print(" ");
-
-  static int myHour, myMinute, myDay, myYear;
-  static int myLeap, myLeapComingSoon, myDST;
-  if ( symbol == 2)
+  if ( debug > 2)
   {
-    // M
+    Serial.print(" ");
+    Serial.print(symbolCount);
+    Serial.print(" ");
+  }
+
+  if ( symbol == 2) // M
+  {
     if ( symbolCount == 0 || symbolCount == 1)
     {
       symbolString[symbolCount] = symbol;
@@ -656,41 +582,57 @@ int decode (int symbol)
     }
     else if ( symbolCount == 9 )
     {
-      myMinute = symbolString[1] * 40 + symbolString[2] * 20 + symbolString[3] * 10
-                 + symbolString[5] * 8 + symbolString[6] * 4 + symbolString[7] * 2 + symbolString[8] * 1;
+
+      int myMinute = symbolString[1] * 40 + symbolString[2] * 20 + symbolString[3] * 10
+                     + symbolString[5] * 8 + symbolString[6] * 4 + symbolString[7] * 2 + symbolString[8] * 1;
       symbolString[symbolCount++] = symbol;
       if ( myMinute > 59 )
       {
-        Serial.println();
-        Serial.print("Minute out of range (0-59): ");
-        Serial.println(myMinute);
+        if ( debug )
+        {
+          Serial.println();
+          Serial.print("Minute out of range (0-59): ");
+          Serial.println(myMinute);
+        }
         badData++;
       }
       else
       {
-        Serial.println();
-        Serial.print("Minute: ");
-        Serial.println(myMinute);
+        if ( debug )
+        {
+          Serial.println();
+          Serial.print("Minute: ");
+          Serial.println(myMinute);
+        }
+        // Embrace the time_t way:  just
+        //   count up all of the seconds and let TimeLib do the
+        //   heavy lifting turning that into minutes, hours, days, etc.
         newTime += myMinute * __seconds_in_a_minute;
       }
     }
     else if ( symbolCount == 19 )
     {
-      myHour = symbolString[12] * 20 + symbolString[13] * 10
-               + symbolString[15] * 8 + symbolString[16] * 4 + symbolString[17] * 2 + symbolString[18] * 1;
+      int myHour = symbolString[12] * 20 + symbolString[13] * 10
+                   + symbolString[15] * 8 + symbolString[16] * 4 + symbolString[17] * 2 + symbolString[18] * 1;
       symbolString[symbolCount++] = symbol;
       if ( myHour > 23 )
       {
-        Serial.println();
-        Serial.print("Hour out of range (0-23): ");
-        Serial.println(myHour);
+        if ( debug )
+        {
+          Serial.println();
+          Serial.print("Hour out of range (0-23): ");
+          Serial.println(myHour);
+        }
         badData++;
       }
       else
       {
-        Serial.println();
-        Serial.print("Hour: ");
-        Serial.println(myHour);
+        if ( debug )
+        {
+          Serial.println();
+          Serial.print("Hour: ");
+          Serial.println(myHour);
+        }
         newTime += myHour * __seconds_in_an_hour;
       }
 
@@ -704,18 +646,21 @@ int decode (int symbol)
     {
       symbolString[symbolCount] = 2;
       symbolCount = 0;
-      Serial.print("****finished!!**");
-      Serial.print(badData);
-      Serial.println("**");
+      if ( debug )
+      {
+        Serial.print("****finished!!**");
+        Serial.print(badData);
+        Serial.println("**");
+      }
+      Serial.println();
 
-      myLeap = symbolString[55];
-      myLeapComingSoon = symbolString[56];
-      myDST = (symbolString[57] << 1 | symbolString[58]);
+      // int myLeap = symbolString[55];
+      // int myLeapComingSoon = symbolString[56];
+      // int myDST = (symbolString[57] << 1 | symbolString[58]);
 
       if ( badData == 0 )
       {
-
-        //All data seems to be ok.
+        // Success!  All data seems to be ok.
         // This adjustment is because they send over the air the "current" time
         //   when the transmitted minute started.
         // By the time we receive and decode we are exactly 1 minute behind.
@@ -727,22 +672,30 @@ int decode (int symbol)
         if ( precision_flag < 1 )
         {
           precision_flag = 1;
-          displayPrecisionMessage();
         }
+
+        precisionHistory[phIndex % PH_SIZE] = 1;
         displayDate();
       }
       else
       {
         badData = 0;
+        precisionHistory[phIndex % PH_SIZE] = 0;
       }
+      phIndex++;
+      phCount = 0;
+      displayPrecisionMessage();
 
     }
     else
     {
       //Busted!
       // Serial.println();
-      Serial.println("*M*Busted*M*");
-      precision_flag = 0;
+      if ( debug )
+      {
+        Serial.println("*M*Busted*M*");
+      }
+      // precision_flag = 0;
       symbolCount = 0;
     }
   }  // end of symbol == 2  "M"
@@ -760,8 +713,11 @@ int decode (int symbol)
     {
       //Busted!
       //Serial.println();
-      Serial.println("*1*Busted*1*");
-      precision_flag = 0;
+      if ( debug )
+      {
+        Serial.println("*1*Busted*1*");
+      }
+      //precision_flag = 0;
       symbolCount = 0;
     }
     else
@@ -777,44 +733,56 @@ int decode (int symbol)
     }
     else if (symbolCount == 34 )
     {
-      myDay = symbolString[22] * 200 + symbolString[23] * 100
-              + symbolString[25] * 80 + symbolString[26] * 40 + symbolString[27] * 20 + symbolString[28] * 10
-              + symbolString[30] * 8 + symbolString[31] * 4 + symbolString[32] * 2 + symbolString[33] * 1;
+      int myDay = symbolString[22] * 200 + symbolString[23] * 100
+                  + symbolString[25] * 80 + symbolString[26] * 40 + symbolString[27] * 20 + symbolString[28] * 10
+                  + symbolString[30] * 8 + symbolString[31] * 4 + symbolString[32] * 2 + symbolString[33] * 1;
       if ( myDay > 366 )
       {
-        Serial.println();
-        Serial.print("Day out of range (1-366): ");
-        Serial.println(myDay);
+        if ( debug )
+        {
+          Serial.println();
+          Serial.print("Day out of range (1-366): ");
+          Serial.println(myDay);
+        }
         badData++;
       }
       else
       {
         // day range sent is 1-365  (366 on leap year)
         newTime += (myDay - 1) * __seconds_in_a_day;
-        Serial.println();
-        Serial.print("day of the year: ");
-        Serial.println(myDay);
+        if ( debug )
+        {
+          Serial.println();
+          Serial.print("day of the year: ");
+          Serial.println(myDay);
+        }
       }
       symbolString[symbolCount++] = 0;
     }
     else if (symbolCount == 54 )
     {
-      myYear = symbolString[45] * 80 + symbolString[46] * 40 + symbolString[47] * 20 + symbolString[48] * 10
-               + symbolString[50] * 8 + symbolString[51] * 4 + symbolString[52] * 2 + symbolString[53] * 1;
+      int myYear = symbolString[45] * 80 + symbolString[46] * 40 + symbolString[47] * 20 + symbolString[48] * 10
+                   + symbolString[50] * 8 + symbolString[51] * 4 + symbolString[52] * 2 + symbolString[53] * 1;
 
       if ( myYear > 99 )
       {
-        Serial.println();
-        Serial.print("year out of range (0-99): ");
-        Serial.println(myYear);
+        if ( debug )
+        {
+          Serial.println();
+          Serial.print("year out of range (0-99): ");
+          Serial.println(myYear);
+        }
         badData++;
       }
       else
       {
         newTime += __seconds_years[myYear - 20];
-        Serial.println();
-        Serial.print("year: ");
-        Serial.println(myYear);
+        if ( debug )
+        {
+          Serial.println();
+          Serial.print("year: ");
+          Serial.println(myYear);
+        }
 
       }
       symbolString[symbolCount++] = 0;
@@ -824,18 +792,32 @@ int decode (int symbol)
     {
       //Busted!
       //Serial.println();
-      Serial.println("*0*Busted*0*");
+      if ( debug )
+      {
+        Serial.println("*0*Busted*0*");
+      }
       symbolCount = 0;
-      precision_flag = 0;
+      //precision_flag = 0;
     }
     else
     {
       symbolString[symbolCount++] = 0;
     }
   }  // end of symbol == 0
-}
 
-//int phaseArray[60];
+  if ( phCount > 59 ) // we've gone one minute without success
+  {
+    precisionHistory[phIndex % PH_SIZE] = 0;
+    phIndex++;
+    phCount = 0;
+    displayPrecisionMessage();
+    Serial.println();
+  }
+  else
+  {
+    phCount++;
+  }
+}
 
 // Cross Correlation
 // Sample the signal strength 100 times per second.
@@ -844,10 +826,10 @@ int decode (int symbol)
 // Initialize patterns for the Zero, One and Mark symbols.
 // Collect nubbins up to nubbinMax  (slightly less than 100),
 //  then do the cross correlation checks and be ready in time
-//  for the next one.
+//  for the next minute to start.
 // Cross correlation uses a floating center with a range on
-//  either side called maxdelay.  As the system runs, we
-//  try to decrease maxdelay so we can do less math when the
+//  either side called maxDelay.  As the system runs, we
+//  try to decrease maxDelay so we can do less math when the
 //  signal is strong.
 
 float patternZero[100];
@@ -868,11 +850,11 @@ int nubbinMax = 95;
 int center = nubbinMax;
 float scoreBucket[200];
 
-int maxdelay = nubbinMax / 2; // half of the nubbin count
+int maxDelay = nubbinMax / 2; // half of the nubbin count
 
 int offsetZero; // Keeping track of what offset was our best correlation
-int offsetOne;  // for each symbol.  When signal is strong they should
-int offsetMark; // all be close to the same number.
+int offsetOne;  //   for each symbol.  When signal is strong they should
+int offsetMark; //   all be close to the same number.
 
 void initializePatternsAndMeans()
 {
@@ -999,7 +981,7 @@ float crossCorrelationZero()
   denom = sqrt(sx * sy);
 
   maxr = 0;
-  for ( d = (center - maxdelay); d < (center + maxdelay); d++)
+  for ( d = (center - maxDelay); d < (center + maxDelay); d++)
   {
     sxy = 0;
     for (i = 0; i < nubbinMax; i++)
@@ -1031,7 +1013,7 @@ float crossCorrelationOne()
   denom = sqrt(sx * sy);
 
   maxr = 0;
-  for ( d = (center - maxdelay); d < (center + maxdelay); d++)
+  for ( d = (center - maxDelay); d < (center + maxDelay); d++)
   {
     sxy = 0;
     for (i = 0; i < nubbinMax; i++)
@@ -1067,7 +1049,7 @@ float crossCorrelationMark()
   denom = sqrt(sx * sy);
 
   maxr = 0;
-  for ( d = (center - maxdelay); d < (center + maxdelay); d++)
+  for ( d = (center - maxDelay); d < (center + maxDelay); d++)
   {
     sxy = 0;
     for (i = 0; i < nubbinMax; i++)
@@ -1118,7 +1100,10 @@ void detectSymbol() {
   {
     if ( localNewNubbin > 1 ) // watching for a skipped beat
     {
-      Serial.println("@@@@@");
+      if ( debug )
+      {
+        Serial.println("@@@@@");
+      }
     }
     localNewNubbin = 0;
 
@@ -1131,8 +1116,6 @@ void detectSymbol() {
       nubbins[nubbinCount + nubbinMax] = wwvb_signal;
       nubbins[nubbinCount + nubbinMax + nubbinMax] = wwvb_signal;
       // nubbinCount++;
-
-
 
       //   and prepare for the next happy arrival
     }
@@ -1173,8 +1156,6 @@ void detectSymbol() {
 
       Serial.print(bit);
 
-
-
       // write the current bit symbol in the
       // upper right corner of the display
       tft.fillRect(291, 5, 18, 18, ILI9341_BLACK);
@@ -1207,11 +1188,14 @@ void detectSymbol() {
           }
           scoreBucket[i] = 0;
         }
-        Serial.println();
-        Serial.print(" ==Current offset guess==: ");
-        Serial.print(m);
-        Serial.print(" : ");
-        Serial.print(maxi);
+        if ( debug )
+        {
+          Serial.println();
+          Serial.print(" ==Current offset guess==: ");
+          Serial.print(m);
+          Serial.print(" : ");
+          Serial.print(maxi);
+        }
 
         // If we are out of the middle range, do a short delay
         //  and try again
@@ -1219,7 +1203,7 @@ void detectSymbol() {
         {
           //noInterrupts();
           center = nubbinMax;
-          maxdelay = 50;
+          maxDelay = 50;
           delay(320);
           //interrupts()
         }
@@ -1229,32 +1213,36 @@ void detectSymbol() {
         //  portion of the score.  If the highest scoring bucket is
         //  strong, we can narrow the search and save some work and
         //  lower potential for false matches.
-        // Number of buckets we are using is 2*maxdelay.
-        // (100/maxdelay) is 2 when maxdelay is 50.
+        // Number of buckets we are using is 2*maxDelay.
+        // (100/maxDelay) is 2 when maxDelay is 50.
         //
         // Minimum window should be large enough to account for
         //  oscillator drift
-        else if ( m > (100 / maxdelay ) && maxi > 50 && maxi < 150)
+        else if ( m > (100 / maxDelay ) && maxi > 50 && maxi < 150)
         {
           center = maxi;
-          if ( maxdelay >= 10 )
+          if ( maxDelay >= 10 )
           {
-            maxdelay = maxdelay - 5;
+            maxDelay = maxDelay - 5;
           }
         }
         // Or maybe we should widen the search
-        else if ( m < (100 / maxdelay) )
+        else if ( m < (100 / maxDelay) )
         {
-          if ( maxdelay < 40 )
+          if ( maxDelay < 40 )
           {
-            maxdelay++;
+            maxDelay++;
           }
         }
-        Serial.print(" maxdelay ");
-        Serial.print(maxdelay);
-        Serial.println();
+        if ( debug )
+        {
+          Serial.print(" maxDelay ");
+          Serial.print(maxDelay);
+          Serial.println();
+        }
       }
-      /*
+      if ( debug > 2 )
+      {
         Serial.print("  Zero  ");
         Serial.print(guessZero);
         Serial.print("  ");
@@ -1270,8 +1258,9 @@ void detectSymbol() {
         Serial.print("  ");
         Serial.print(offsetMark);
 
-            Serial.println();
-      */
+        Serial.println();
+      }
+
       decode(bitVal);
     }
     nubbinCount++;
@@ -1460,12 +1449,15 @@ void displayDate() {
     tft.setFont(Arial_16);
     tft.setCursor(pos_x_date, pos_y_date);
 
-    Serial.println("displayDate");
+    if ( debug )
+    {
+      Serial.println("displayDate");
+    }
     // Date: %s, %d.%d.20%d P:%d %d", Days[weekday-1], day, month, year
     // sprintf(string99, "%s, %02d.%02d.%04d", Days[weekday()], newDay, newMonth, newYear);
     // todo:  the weekday() function caused me trouble.  Not infrequently the whole
     //   system would lock up at this point.  So I took it out.  May revisit it later.
-    //sprintf(string99, "%02d.%02d.%04d", newDay, newMonth, newYear);
+    // sprintf(string99, "%02d.%02d.%04d", newDay, newMonth, newYear);
     sprintf(string99, "%s %02d, %04d", Months[newMonth], newDay, newYear);
     tft.print(string99);
 
