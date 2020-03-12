@@ -137,8 +137,8 @@ uint8_t minute1_old;
 uint8_t second10_old;
 uint8_t second1_old;
 uint8_t precision_flag = 0;
-int8_t mesz = -1;
-int8_t mesz_old = 0;
+
+
 
 const float displayscale = 2.5;
 
@@ -217,6 +217,7 @@ void setup() {
   displayDate();
   displayClock();
   displayPrecisionMessage();
+  // displayEtc();
 
   initializePatternsAndMeans();
 
@@ -475,8 +476,8 @@ void agc() {
 //
 // array is circular buffer
 
-#define PH_SIZE 60  
-#define PH_DISPLAY 45 
+#define PH_SIZE 60
+#define PH_DISPLAY 45
 int precisionHistory[PH_SIZE]; // 0 = fail; 1 = success
 unsigned int phIndex = PH_DISPLAY;
 
@@ -529,7 +530,7 @@ void displayPrecisionMessage()
   }
 } // end function displayPrecisionMessage
 
-int symbolString[60];
+int symbolArray[60];
 int symbolCount = 0;
 
 const int __seconds_in_a_minute = 60;
@@ -558,6 +559,12 @@ const unsigned int __seconds_years[30] =
 //  The start condition is looking for 'M' symbol.
 //
 
+int leapYear = 0;
+int leapSecondWarning = 0;
+int statusDST = 0;
+int offsetDUT1 = 0;
+char signDUT1 = ' ';
+
 void decode (int symbol)
 {
   static int badData = 0;
@@ -575,7 +582,7 @@ void decode (int symbol)
   {
     if ( symbolCount == 0 || symbolCount == 1)
     {
-      symbolString[symbolCount] = symbol;
+      symbolArray[symbolCount] = symbol;
       symbolCount = 1;
       badData = 0;
       newTime = 0;
@@ -583,9 +590,9 @@ void decode (int symbol)
     else if ( symbolCount == 9 )
     {
 
-      int myMinute = symbolString[1] * 40 + symbolString[2] * 20 + symbolString[3] * 10
-                     + symbolString[5] * 8 + symbolString[6] * 4 + symbolString[7] * 2 + symbolString[8] * 1;
-      symbolString[symbolCount++] = symbol;
+      int myMinute = symbolArray[1] * 40 + symbolArray[2] * 20 + symbolArray[3] * 10
+                     + symbolArray[5] * 8 + symbolArray[6] * 4 + symbolArray[7] * 2 + symbolArray[8] * 1;
+      symbolArray[symbolCount++] = symbol;
       if ( myMinute > 59 )
       {
         if ( debug )
@@ -612,9 +619,9 @@ void decode (int symbol)
     }
     else if ( symbolCount == 19 )
     {
-      int myHour = symbolString[12] * 20 + symbolString[13] * 10
-                   + symbolString[15] * 8 + symbolString[16] * 4 + symbolString[17] * 2 + symbolString[18] * 1;
-      symbolString[symbolCount++] = symbol;
+      int myHour = symbolArray[12] * 20 + symbolArray[13] * 10
+                   + symbolArray[15] * 8 + symbolArray[16] * 4 + symbolArray[17] * 2 + symbolArray[18] * 1;
+      symbolArray[symbolCount++] = symbol;
       if ( myHour > 23 )
       {
         if ( debug )
@@ -639,12 +646,12 @@ void decode (int symbol)
     }
     else if ( symbolCount == 29 ||  symbolCount == 39 || symbolCount == 49 )
     {
-      symbolString[symbolCount] = 2;
+      symbolArray[symbolCount] = 2;
       symbolCount++;
     }
     else if ( symbolCount == 59 )
     {
-      symbolString[symbolCount] = 2;
+      symbolArray[symbolCount] = 2;
       symbolCount = 0;
       if ( debug )
       {
@@ -654,9 +661,11 @@ void decode (int symbol)
       }
       Serial.println();
 
-      // int myLeap = symbolString[55];
-      // int myLeapComingSoon = symbolString[56];
-      // int myDST = (symbolString[57] << 1 | symbolString[58]);
+      leapYear = symbolArray[55];
+      // skipping the baddata cross-check on leap year
+
+      leapSecondWarning = symbolArray[56];
+      statusDST = symbolArray[57] * 2 + symbolArray[58];
 
       if ( badData == 0 )
       {
@@ -676,6 +685,7 @@ void decode (int symbol)
 
         precisionHistory[phIndex % PH_SIZE] = 1;
         displayDate();
+        // displayEtc();
       }
       else
       {
@@ -722,7 +732,7 @@ void decode (int symbol)
     }
     else
     {
-      symbolString[symbolCount++] = 1;
+      symbolArray[symbolCount++] = 1;
     }
   } // end of symbol == 1
   else if ( symbol == 0 )
@@ -733,9 +743,9 @@ void decode (int symbol)
     }
     else if (symbolCount == 34 )
     {
-      int myDay = symbolString[22] * 200 + symbolString[23] * 100
-                  + symbolString[25] * 80 + symbolString[26] * 40 + symbolString[27] * 20 + symbolString[28] * 10
-                  + symbolString[30] * 8 + symbolString[31] * 4 + symbolString[32] * 2 + symbolString[33] * 1;
+      int myDay = symbolArray[22] * 200 + symbolArray[23] * 100
+                  + symbolArray[25] * 80 + symbolArray[26] * 40 + symbolArray[27] * 20 + symbolArray[28] * 10
+                  + symbolArray[30] * 8 + symbolArray[31] * 4 + symbolArray[32] * 2 + symbolArray[33] * 1;
       if ( myDay > 366 )
       {
         if ( debug )
@@ -757,12 +767,37 @@ void decode (int symbol)
           Serial.println(myDay);
         }
       }
-      symbolString[symbolCount++] = 0;
+      symbolArray[symbolCount++] = 0;
+    }
+    else if (symbolCount == 44 )  // DUT1 offset
+    {
+      // it is really a floating point number.
+      // but we will handle that when we display it.
+      offsetDUT1 = symbolArray[40] * 8 + symbolArray[41] * 4 + symbolArray[42] * 2
+                   + symbolArray[43];
+      if ( symbolArray[37] == 1 && symbolArray[36] == 0 && symbolArray[38] == 0)
+      {
+        signDUT1 = '-';
+      }
+      else if (symbolArray[37] == 0 && symbolArray[36] == 1 && symbolArray[38] == 1)
+      {
+        signDUT1 = '+';
+      }
+      else
+      {
+        if ( debug )
+        {
+          Serial.println();
+          Serial.print("DUT1 sign conflict: ");
+        }
+        badData++;
+      }
+      symbolArray[symbolCount++] = 0;
     }
     else if (symbolCount == 54 )
     {
-      int myYear = symbolString[45] * 80 + symbolString[46] * 40 + symbolString[47] * 20 + symbolString[48] * 10
-                   + symbolString[50] * 8 + symbolString[51] * 4 + symbolString[52] * 2 + symbolString[53] * 1;
+      int myYear = symbolArray[45] * 80 + symbolArray[46] * 40 + symbolArray[47] * 20 + symbolArray[48] * 10
+                   + symbolArray[50] * 8 + symbolArray[51] * 4 + symbolArray[52] * 2 + symbolArray[53] * 1;
 
       if ( myYear > 99 )
       {
@@ -785,7 +820,7 @@ void decode (int symbol)
         }
 
       }
-      symbolString[symbolCount++] = 0;
+      symbolArray[symbolCount++] = 0;
     }
     else if ( symbolCount == 9 || symbolCount == 19 || symbolCount == 29 ||
               symbolCount == 39 || symbolCount == 49 )
@@ -801,7 +836,7 @@ void decode (int symbol)
     }
     else
     {
-      symbolString[symbolCount++] = 0;
+      symbolArray[symbolCount++] = 0;
     }
   }  // end of symbol == 0
 
@@ -1119,7 +1154,7 @@ void detectSymbol() {
 
       //   and prepare for the next happy arrival
     }
-    else if ( nubbinCount >= 100 )
+    else if ( nubbinCount >= 100 ) // 1-100 = 100 nubbins per second
     {
       // For the last few nubbins we don't even mark them down.
       // We don't want to overwrite the duplicates which start at nubbinMax + 1
@@ -1136,7 +1171,7 @@ void detectSymbol() {
       guessZero = crossCorrelationZero();
       guessOne = crossCorrelationOne();
       guessMark = crossCorrelationMark();
-      doOtherStuff = true;
+
 
       if ( guessZero >= guessOne && guessZero >= guessMark)
       {
@@ -1264,6 +1299,11 @@ void detectSymbol() {
       decode(bitVal);
     }
     nubbinCount++;
+
+    if ( nubbinCount % 10 == 0)
+    {
+      doOtherStuff = true;
+    }
   }
 
 }
@@ -1414,13 +1454,25 @@ void displayClock() {
     tft.print(second1);  // always display
   }
 
+  if (hour1 != hour1_old || !timeflag) {
+    tft.setCursor(pos_x_time + 6 * time_pos_shift + 2 * dp, pos_y_time);
+    tft.fillRect(pos_x_time  + 6 * time_pos_shift + 2 * dp, pos_y_time, time_pos_shift + 3, 11, ILI9341_BLACK);
+
+    tft.setFont(Arial_9);
+    tft.setTextColor(ILI9341_RED);
+    tft.print(" ");
+    tft.print(signDUT1);
+    tft.print("0.");
+    tft.print(offsetDUT1);
+  }
+
   hour1_old = hour1;
   hour10_old = hour10;
   minute1_old = minute1;
   minute10_old = minute10;
   second1_old = second1;
   second10_old = second10;
-  mesz_old = mesz;
+
   timeflag = 1;
 
 } // end function displayTime
@@ -1437,7 +1489,6 @@ void displayDate() {
   int newDay, newMonth, newYear;
 
   newDay = day();
-
   newMonth = month();
   newYear = year();
 
@@ -1464,5 +1515,57 @@ void displayDate() {
     oldDay = newDay;
     oldMonth = newMonth;
     oldYear = newYear;
+
+    if ( leapSecondWarning )
+    {
+      tft.fillRect(10, 160, 118, 13, ILI9341_BLACK); // erase old string
+      tft.setTextColor(ILI9341_ORANGE);
+      tft.setFont(Arial_9);
+      tft.setCursor(10, 160);
+      tft.print("leap second warning");
+    }
+    else
+    {
+      tft.fillRect(10, 160, 118, 13, ILI9341_BLACK);
+    }
+
+    Serial.print("LY");
+    Serial.println(leapYear);
+    if ( leapYear )
+    {
+      tft.fillRect(10, 175, 55, 13, ILI9341_BLACK); // erase old string
+      tft.setTextColor(ILI9341_ORANGE);
+      tft.setFont(Arial_9);
+      tft.setCursor(10, 175);
+      tft.print("leap year");
+    }
+    else
+    {
+      tft.fillRect(10, 175, 55, 13, ILI9341_BLACK);
+    }
+
+    if ( statusDST > 0 )
+    {
+      tft.fillRect(10, 190, 103, 13, ILI9341_BLACK); // erase old string
+      tft.setTextColor(ILI9341_ORANGE);
+      tft.setFont(Arial_9);
+      tft.setCursor(10, 190);
+      if ( statusDST == 2 )
+      {
+        tft.print("DST begins today");
+      }
+      else if ( statusDST == 1 )
+      {
+        tft.print("DST ends today");
+      }
+      else
+      {
+        tft.print("DST");
+      }
+    }
+    else
+    {
+      tft.fillRect(10, 190, 103, 13, ILI9341_BLACK);
+    }
   }
 } // end function displayDate
