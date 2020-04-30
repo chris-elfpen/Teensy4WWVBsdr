@@ -1,5 +1,4 @@
 
-
 /***********************************************************************
 
    Thanks to the following which was the inspiration and original source
@@ -80,7 +79,7 @@ ILI9341_t3 tft = ILI9341_t3(TFT_CS, TFT_DC, TFT_RST, TFT_MOSI, TFT_SCLK, TFT_MIS
 #define SAMPLE_RATE_192K              10
 #define SAMPLE_RATE_MAX               10
 
-int debug = 0;
+int debug = 1;
 
 AudioInputI2S            i2s_in;         //xy=202,411
 AudioSynthWaveformSine   sine1;          //xy=354,249
@@ -138,8 +137,6 @@ uint8_t second10_old;
 uint8_t second1_old;
 uint8_t precision_flag = 0;
 
-
-
 const float displayscale = 2.5;
 
 typedef struct SR_Descriptor
@@ -181,8 +178,8 @@ void loop();
 
 void setup() {
 
-  //Serial.begin(115200);
-  Serial.begin(9600);
+  Serial.begin(115200);
+  //Serial.begin(9600);
 
   setSyncProvider(getTeensy3Time);
 
@@ -478,6 +475,11 @@ void agc() {
 
 #define PH_SIZE 60
 #define PH_DISPLAY 45
+#define PH_PERIOD __seconds_in_an_hour  // seconds in each ph period
+#define PH_NONE 0
+#define PH_DECODE 1
+#define PH_SET 2
+
 int precisionHistory[PH_SIZE]; // 0 = fail; 1 = success
 unsigned int phIndex = PH_DISPLAY;
 
@@ -487,10 +489,25 @@ void initializePrecisionHistory()
   // initialize all to fail state
   for (int i = 0; i < PH_SIZE; i++ )
   {
-    precisionHistory[i] = 0;
+    precisionHistory[i] = PH_NONE;
   }
 }
 
+void setPrecisionForPeriod (int newState, boolean inc)
+{
+  // set the Precision level for this period.
+  // if inc, increment the period
+
+  if ( precisionHistory[phIndex % PH_SIZE] < newState )
+  {
+    precisionHistory[phIndex % PH_SIZE] = newState;
+  }
+  if ( inc )
+  {
+    phIndex++;
+  }
+
+}
 void displayPrecisionMessage()
 {
   unsigned int i, j;
@@ -503,10 +520,15 @@ void displayPrecisionMessage()
 
     for ( i = 0; i < PH_DISPLAY; i++ )
     {
-      j = (i + phIndex - PH_DISPLAY) % PH_SIZE;
-      if ( precisionHistory[j] )
+      j = (i + phIndex - PH_DISPLAY + 1) % PH_SIZE;
+      if ( precisionHistory[j] == PH_SET )
       {
         tft.setTextColor(ILI9341_GREEN);
+        tft.print("*");
+      }
+      else if ( precisionHistory[j] == PH_DECODE )
+      {
+        tft.setTextColor(ILI9341_YELLOW);
         tft.print("*");
       }
       else
@@ -558,6 +580,8 @@ const unsigned int __seconds_years[30] =
 //  are we busted.  Machine starts over when busted.
 //  The start condition is looking for 'M' symbol.
 //
+//  If we completely decode two successive minutes, set the clock.
+//
 
 int leapYear = 0;
 int leapSecondWarning = 0;
@@ -565,12 +589,15 @@ int statusDST = 0;
 int offsetDUT1 = 0;
 char signDUT1 = ' ';
 
+// Save the most recent decode;
+static time_t recent_decode = now();
+
 void decode (int symbol)
 {
   static int badData = 0;
   static time_t newTime = 0;
   static int phCount = 0;
-
+ 
   if ( debug > 2)
   {
     Serial.print(" ");
@@ -670,30 +697,44 @@ void decode (int symbol)
       if ( badData == 0 )
       {
         // Success!  All data seems to be ok.
-        // This adjustment is because they send over the air the "current" time
-        //   when the transmitted minute started.
-        // By the time we receive and decode we are exactly 1 minute behind.
-        setTime(newTime + __seconds_in_a_minute);
 
-        // set the hardware real-time-clock
-        Teensy3Clock.set(now());
-
-        if ( precision_flag < 1 )
+        // wait for two decodes in a row before we
+        // actually call it good.
+        if ( newTime == recent_decode )
         {
-          precision_flag = 1;
-        }
+          Serial.println("two in a row, setting time");
+          // This adjustment is because they send over the air the "current" time
+          //   when the transmitted minute started.
+          // By the time we receive and decode we are exactly 1 minute behind.
+          setTime(newTime + __seconds_in_a_minute);
 
-        precisionHistory[phIndex % PH_SIZE] = 1;
-        displayDate();
-        // displayEtc();
+          // set the hardware real-time-clock
+          Teensy3Clock.set(now());
+
+          if ( precision_flag < 1 )
+          {
+            precision_flag = 1;
+          }
+
+          //  Precision history to indicate which minutes had good decodes
+          setPrecisionForPeriod(PH_SET, false);
+          displayDate();
+          // displayEtc();
+        }
+        else
+        {
+          setPrecisionForPeriod(PH_DECODE, false);
+        }
+        recent_decode = newTime + __seconds_in_a_minute;
+        Serial.print("recent decode is ");
+        Serial.println(recent_decode);
       }
       else
       {
         badData = 0;
-        precisionHistory[phIndex % PH_SIZE] = 0;
+        setPrecisionForPeriod(PH_NONE, false);
       }
-      phIndex++;
-      phCount = 0;
+      // phCount = 0;
       displayPrecisionMessage();
 
     }
@@ -840,10 +881,9 @@ void decode (int symbol)
     }
   }  // end of symbol == 0
 
-  if ( phCount > 59 ) // we've gone one minute without success
+  if ( phCount >= PH_PERIOD ) // we've gone one period without success
   {
-    precisionHistory[phIndex % PH_SIZE] = 0;
-    phIndex++;
+    setPrecisionForPeriod(PH_NONE, true);
     phCount = 0;
     displayPrecisionMessage();
     Serial.println();
