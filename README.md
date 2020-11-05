@@ -32,7 +32,7 @@ Color touchscreen https://www.pjrc.com/store/display_ili9341_touch.html
 |MEMCS (audio)|	6|	19|	SCL (audio)|
 |DIN (audio) |7|18|SDA (audio)|
 |DOUT (audio)|8|17||
-|T_CS (screen)|9|  16|T_IRQ (screen)|
+|T_CS (screen)|9|  16|T_IRQ (screen) Not connected|
 |SDCS (audio)|10|15|VOL (audio)|
 |MOSI|11|14|CS (screen)|
 |  MISO|12|  13	| SCK|
@@ -52,8 +52,25 @@ Color touchscreen https://www.pjrc.com/store/display_ili9341_touch.html
  |7|SCK|13|
  |8|LED	|22 via 100 ohm resistor|			
  |9|SDO (MISO)|	12|			
-|10|T_CLK	|13|			
-|11|T_CS	|9|			
-|12|T_DIN	|11|			
-|13|T_DO	|12|			
-|14|T_IRQ|	16|			
+|10|T_CLK	|13	Not Connected |		
+|11|T_CS	|9	Not Connected|	
+|12|T_DIN	|11	Not Connected|		
+|13|T_DO	|12	Not Connected|		
+|14|T_IRQ|	16	Not Connected|		
+
+### pictures
+I've added some pictures of my implementation.
+
+For antenna I have the top section of a standard 5 gal bucket which I have sawn off.
+I am using some salvaged enameled wire, about 30 turns (?).
+Then inside the enclosure the connections from the antenna go to a circuit board
+which has some capacitors soldered to it so as to make a resonant antenna.
+From there the signal goes into the sound board.
+The sound board and Teensy 4.0 are stacked.
+From the stack I have connections to the LCD.
+
+I've lined my plastic enclosure with aluminum foil.
+
+The stack of audio/teensy is mounted to the enclosure.
+The LCD, capacitor board and foil are just floating around in there...
+I still have work to do on my enclosure.
